@@ -87,14 +87,104 @@
 
         /* MODO IMPRESSÃO */
         @media print {
-            .no-print, nav, .modal-footer, .btn, .form-switch, .input-group { display: none !important; }
-            .card { border: none !important; box-shadow: none !important; }
-            .card-header { background-color: #fff !important; border-bottom: 2px solid #000 !important; }
-            body { background-color: #fff; }
-            .table { width: 100%; border-collapse: collapse; }
-            .table th, .table td { border: 1px solid #ddd !important; }
-            /* Remove bordas de inputs na impressão para parecer texto */
-            input { border: none !important; background: transparent !important; }
+            @page {
+                size: A4;
+                margin: 1.5cm;
+            }
+            @page landscape {
+                size: A4 landscape;
+            }
+
+            /* By default, hide everything when printing is triggered via our script */
+            body.printing-modal > * { display: none !important; }
+            /* And show only the modal we've marked as printable */
+            body.printing-modal .printable { display: block !important; position: static !important; }
+
+            /* General print styles */
+            :root { color: #000 !important; }
+            .no-print, .btn, .modal-header .btn-close, .modal-header .btn-light { display: none !important; }
+            
+            body { background-color: #fff !important; font-size: 10pt; }
+
+            .table { 
+                width: 100%; 
+                border-collapse: collapse !important; 
+                font-size: 8pt !important;
+                white-space: normal !important;
+            }
+            .table th, .table td { 
+                border: 1px solid #ccc !important; 
+                padding: 5px; 
+                text-align: left !important;
+            }
+            .table th {
+                background-color: #f2f2f2 !important;
+                font-weight: bold;
+            }
+
+            input { border: none !important; background: transparent !important; font-size: inherit; font-family: inherit; color: #000 !important; }
+            input:disabled { color: #000 !important; }
+            .td-money { text-align: right !important; }
+
+            /* Styles for the printable modal content */
+            .printable .modal-dialog,
+            .printable .modal-content {
+                display: block !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                transform: none !important;
+                box-shadow: none !important;
+                border: none !important;
+            }
+            .printable .modal-header {
+                border-bottom: 2px solid #000;
+                text-align: center;
+                margin-bottom: 1rem;
+                padding: 0 0 0.5rem 0;
+            }
+            .printable .modal-title {
+                font-size: 18pt;
+                width: 100%;
+            }
+            .printable .modal-body {
+                overflow: visible !important;
+                padding: 0 !important;
+            }
+            .printable .card { border: none !important; box-shadow: none !important; }
+
+            /* Ajustes para Classificação */
+            .printable#modalClassificacao {
+                page: landscape;
+            }
+            .printable#modalClassificacao .table {
+                font-size: 7pt !important;
+            }
+            .printable#modalClassificacao .row { display: block !important; }
+            .printable#modalClassificacao .col-md-3 { display: none; }
+            .printable#modalClassificacao .col-md-9 {
+                width: 100% !important; flex: none !important; max-width: 100% !important;
+                border: none !important; height: auto !important;
+            }
+            .printable#modalClassificacao .table-responsive { overflow: visible !important; }
+            .printable#modalClassificacao .sticky-top { position: static !important; }
+            .printable#modalClassificacao .th-rodada, .printable#modalClassificacao .table-light, .printable#modalClassificacao #headerClassificacao { background-color: #f2f2f2 !important; color: #000 !important; }
+            .printable#modalClassificacao .td-pontos { background-color: #fff !important; }
+            .printable#modalClassificacao .rank-1, .printable#modalClassificacao .rank-2, .printable#modalClassificacao .rank-3 { background-color: #fff !important; font-weight: normal; }
+            .printable#modalClassificacao .text-start { text-align: left !important; }
+
+            /* Ajustes para Financeiro */
+            .printable#modalRelatorioFinanceiro .card, .printable#modalRelatorioFinanceiro .table-responsive {
+                box-shadow: none !important;
+                border: none !important;
+            }
+            .printable#modalRelatorioFinanceiro .bg-total, .printable#modalRelatorioFinanceiro .table-light {
+                background-color: #f2f2f2 !important;
+                color: #000 !important;
+                font-weight: bold;
+            }
+            .printable#modalRelatorioFinanceiro tfoot td { border-top: 2px solid #000 !important; }
+            .printable#modalRelatorioFinanceiro .text-red, .printable#modalRelatorioFinanceiro .text-green { color: #000 !important; }
         }
     </style>
 </head>
@@ -278,7 +368,10 @@
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
                 <h5 class="modal-title fw-bold"><i class="bi bi-cash-stack"></i> Relatório Financeiro</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <div>
+                    <button class="btn btn-sm btn-light me-2" onclick="imprimirModal('modalRelatorioFinanceiro')"><i class="bi bi-printer"></i> Imprimir</button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
             </div>
             <div class="modal-body bg-light">
                 <div class="row mb-3">
@@ -332,10 +425,12 @@
     <div class="modal-dialog modal-fullscreen">
       <div class="modal-content">
         <div class="modal-header bg-primary text-white">
-          <h5 class="modal-title fw-bold" id="tituloClassificacao">Classificação Geral</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body bg-white p-0">
+                  <h5 class="modal-title fw-bold" id="tituloClassificacao">Classificação Geral</h5>
+                  <div>
+                    <button class="btn btn-sm btn-light me-2" onclick="imprimirModal('modalClassificacao')"><i class="bi bi-printer"></i> Imprimir</button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                  </div>
+                </div>        <div class="modal-body bg-white p-0">
             <div class="row g-0 h-100">
                 <div class="col-md-9 h-100 overflow-auto border-end">
                     <div class="table-responsive">
@@ -1738,6 +1833,45 @@ function autoPosicionarPorSaldo() {
         <td>${totaisGerais.taxa.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
         <td>${totaisGerais.balanco.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
       `;
+  };
+
+  window.imprimirModal = (modalId) => {
+      const modalEl = document.getElementById(modalId);
+      if (!modalEl) return;
+      
+      let mql = null;
+      let mqlListener = null;
+
+      const cleanup = () => {
+          document.body.classList.remove('printing-modal');
+          modalEl.classList.remove('printable');
+          window.removeEventListener('afterprint', cleanup);
+          if (mql) {
+              if (mql.removeListener) {
+                  mql.removeListener(mqlListener);
+              } else {
+                  mql.removeEventListener('change', mqlListener);
+              }
+          }
+      };
+
+      mqlListener = (mqlEvent) => {
+          if (!mqlEvent.matches) {
+              cleanup();
+          }
+      };
+
+      mql = window.matchMedia('print');
+      window.addEventListener('afterprint', cleanup);
+      if (mql.addListener) {
+          mql.addListener(mqlListener);
+      } else {
+          mql.addEventListener('change', mqlListener);
+      }
+
+      document.body.classList.add('printing-modal');
+      modalEl.classList.add('printable');
+      window.print();
   };
 
   // ========================================================
