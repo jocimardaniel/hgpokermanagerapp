@@ -653,39 +653,41 @@
       }
   }
 
-  function autoPosicionarPorSaldo() {
-      if (currentRodadaData.tipo !== 'Cash') return;
+function autoPosicionarPorSaldo() {
+    if (currentRodadaData.tipo !== 'Cash') return;
+    const tbody = document.getElementById('tbodyLancamento');
+    const linhas = tbody.querySelectorAll('tr');
+    
+    if (linhas.length === 0) {
+        recalcularTotaisGerais();
+        return;
+    }
+    
+    let saldos = [];
+    linhas.forEach(tr => {
+        recalcularLinha(tr.dataset.uid); // Ensure saldo is up-to-date
+        saldos.push({
+            uid: tr.dataset.uid,
+            saldo: parseFloat(tr.querySelector('.inp-saldo-fichas').value) || -Infinity
+        });
+    });
 
-      const linhas = document.querySelectorAll('#tbodyLancamento tr');
-      if (linhas.length === 0) {
-          recalcularTotaisGerais();
-          return;
-      }
-      
-      let saldos = [];
-      linhas.forEach(tr => {
-          recalcularLinha(tr.dataset.uid);
-          saldos.push({
-              uid: tr.dataset.uid,
-              saldo: parseFloat(tr.querySelector('.inp-saldo-fichas').value) || -Infinity
-          });
-      });
+    saldos.sort((a, b) => b.saldo - a.saldo);
 
-      saldos.sort((a, b) => b.saldo - a.saldo);
+    const qtdJogadores = linhas.length;
+    saldos.forEach((item, index) => {
+        const pos = index + 1;
+        const tr = document.getElementById(`tr-${item.uid}`);
+        if(tr) {
+            tr.querySelector('.inp-posicao').value = pos;
+            const pontos = calcularPontos(pos, qtdJogadores, currentRodadaData.buyInValor);
+            tr.querySelector('.lbl-pontos').innerText = pontos.toFixed(2);
+            tbody.appendChild(tr); // Re-append the node to sort it in the DOM
+        }
+    });
 
-      const qtdJogadores = linhas.length;
-      saldos.forEach((item, index) => {
-          const pos = index + 1;
-          const tr = document.getElementById(`tr-${item.uid}`);
-          if(tr) {
-              tr.querySelector('.inp-posicao').value = pos;
-              const pontos = calcularPontos(pos, qtdJogadores, currentRodadaData.buyInValor);
-              tr.querySelector('.lbl-pontos').innerText = pontos.toFixed(2);
-          }
-      });
-
-      recalcularTotaisGerais();
-  }
+    recalcularTotaisGerais();
+}
 
   window.handleSaldoChange = (uid) => {
       autoPosicionarPorSaldo();
@@ -711,7 +713,6 @@
   window.abrirLancamento = async (rodadaId, readOnly = false) => {
       currentRodadaId = rodadaId;
       isLancamentoReadOnly = readOnly;
-      modalGestaoRodadas.hide();
       
       // Busca dados
       const rSnap = await getDoc(doc(db, "rankings", currentRankingId, "rodadas", rodadaId));
@@ -777,7 +778,11 @@
 
   // B. Carregar Resultados do Banco
   async function carregarResultadosTabela() {
-      const q = query(collection(db, "rankings", currentRankingId, "rodadas", currentRodadaId, "jogadores"));
+      const isCash = currentRodadaData.tipo === 'Cash';
+      const q = isCash
+        ? query(collection(db, "rankings", currentRankingId, "rodadas", currentRodadaId, "jogadores"))
+        : query(collection(db, "rankings", currentRankingId, "rodadas", currentRodadaId, "jogadores"), orderBy("posicao", "asc"));
+      
       const snap = await getDocs(q);
       document.getElementById('tbodyLancamento').innerHTML = '';
       
