@@ -534,6 +534,7 @@
                     </div>
                 </div>
                 <div class="col-md-8 text-end">
+                    
                     <small class="text-muted fst-italic me-2" id="msgRegraCash">Regra Cash: Saída arredondada (múltiplo de 10). O resto vai para Sobras.</small>
                 </div>
             </div>
@@ -725,45 +726,24 @@
       return pontos;
   }
 
-  function recalcularLinha(uid) {
-      const tr = document.getElementById(`tr-${uid}`);
-      if (!tr) return;
-
-      const buyins = parseInt(tr.querySelector('.inp-buyin').value) || 0;
-      const rebuys = parseInt(tr.querySelector('.inp-rebuy').value) || 0;
-      const addons = parseInt(tr.querySelector('.inp-addon').value) || 0;
-      const saidaRaw = parseFloat(tr.querySelector('.inp-saida').value) || 0;
-
-      const totalInvestido = (buyins * currentRodadaData.buyInValor) + (rebuys * currentRodadaData.rebuyValor) + (addons * currentRodadaData.addOnValor);
-      tr.querySelector('.inp-total-inv').value = totalInvestido.toFixed(2);
-
-      if (currentRodadaData.tipo === 'Cash') {
-          const saldoFichas = saidaRaw - totalInvestido;
-          tr.querySelector('.inp-saldo-fichas').value = saldoFichas.toFixed(2);
-          
-          const pagavel = Math.floor(saidaRaw / 10) * 10;
-          const sobras = saidaRaw - pagavel;
-          tr.querySelector('.inp-sobras').value = sobras.toFixed(2);
-          tr.querySelector('.inp-cashout').value = pagavel.toFixed(2);
-      }
-  }
-
-function autoPosicionarPorSaldo() {
+  function autoPosicionarPorSaldo() {
     if (currentRodadaData.tipo !== 'Cash') return;
     const tbody = document.getElementById('tbodyLancamento');
     const linhas = tbody.querySelectorAll('tr');
-    
+
     if (linhas.length === 0) {
         recalcularTotaisGerais();
         return;
     }
-    
+
     let saldos = [];
     linhas.forEach(tr => {
-        recalcularLinha(tr.dataset.uid); // Ensure saldo is up-to-date
+        window.recalcularLinha(tr.dataset.uid); // Use a função global e completa
+        const saldoStr = (tr.querySelector('.inp-saldo-fichas').value || '').replace(',', '.');
+        const saldoNum = parseFloat(saldoStr);
         saldos.push({
             uid: tr.dataset.uid,
-            saldo: parseFloat(tr.querySelector('.inp-saldo-fichas').value) || -Infinity
+            saldo: isNaN(saldoNum) ? -Infinity : saldoNum // Lida com NaN
         });
     });
 
@@ -773,33 +753,19 @@ function autoPosicionarPorSaldo() {
     saldos.forEach((item, index) => {
         const pos = index + 1;
         const tr = document.getElementById(`tr-${item.uid}`);
-        if(tr) {
+        if (tr) {
             tr.querySelector('.inp-posicao').value = pos;
-            const pontos = calcularPontos(pos, qtdJogadores, currentRodadaData.buyInValor);
-            tr.querySelector('.lbl-pontos').innerText = pontos.toFixed(2);
-            tbody.appendChild(tr); // Re-append the node to sort it in the DOM
+            window.recalcularLinha(item.uid); // Recalcula tudo com base na nova posição
+            tbody.appendChild(tr); // Reordena a linha no DOM
         }
     });
 
     recalcularTotaisGerais();
 }
 
-  window.handleSaldoChange = (uid) => {
-      autoPosicionarPorSaldo();
-  };
 
   window.handleGenericChange = (uid) => {
-      const tr = document.getElementById(`tr-${uid}`);
-      if (!tr) return;
-
-      recalcularLinha(uid); 
-
-      const posicao = parseInt(tr.querySelector('.inp-posicao').value) || 0;
-      const qtdJogadores = document.querySelectorAll('#tbodyLancamento tr').length;
-      const pontos = calcularPontos(posicao, qtdJogadores, currentRodadaData.buyInValor);
-      tr.querySelector('.lbl-pontos').innerText = pontos.toFixed(2);
-      
-      recalcularTotaisGerais();
+      recalcularLinha(uid);
   };
 
   // --- FUNÇÕES DE UI E DADOS ---
@@ -834,7 +800,7 @@ function autoPosicionarPorSaldo() {
       if (isCash) {
           headerTr.innerHTML = `
             <th style="width:15%">Jogador</th>
-            <th style="width:5%">Buy</th><th style="width:5%">Reb</th><th style="width:5%">Add</th><th style="width:5%">Bon</th>
+            <th style="width:5%">Buy</th><th style="width:5%">Reb</th>
             <th style="width:8%" class="bg-light border-start">Invest. (R$)</th>
             <th style="width:8%">Fichas (Mesa)</th>
             <th style="width:8%" class="bg-light">Saldo Fichas</th>
@@ -873,10 +839,7 @@ function autoPosicionarPorSaldo() {
 
   // B. Carregar Resultados do Banco
   async function carregarResultadosTabela() {
-      const isCash = currentRodadaData.tipo === 'Cash';
-      const q = isCash
-        ? query(collection(db, "rankings", currentRankingId, "rodadas", currentRodadaId, "jogadores"))
-        : query(collection(db, "rankings", currentRankingId, "rodadas", currentRodadaId, "jogadores"), orderBy("posicao", "asc"));
+      const q = query(collection(db, "rankings", currentRankingId, "rodadas", currentRodadaId, "jogadores"), orderBy("posicao", "asc"));
       
       const snap = await getDocs(q);
       document.getElementById('tbodyLancamento').innerHTML = '';
@@ -885,11 +848,7 @@ function autoPosicionarPorSaldo() {
           renderizarLinhaJogador(doc.id, doc.data());
       });
       
-      if (currentRodadaData.tipo === 'Cash') {
-          autoPosicionarPorSaldo();
-      } else {
-          recalcularTotaisGerais();
-      }
+      recalcularTotaisGerais();
   }
 
   // C. Adicionar Jogador na Mesa
@@ -913,11 +872,7 @@ function autoPosicionarPorSaldo() {
       
       renderizarLinhaJogador(uid, data);
       
-      if (currentRodadaData.tipo === 'Cash') {
-          autoPosicionarPorSaldo();
-      } else {
-          handleGenericChange(uid);
-      }
+      handleGenericChange(uid);
       select.value = "";
   };
 
@@ -934,16 +889,17 @@ function autoPosicionarPorSaldo() {
       const cashOutVal = data.cashout !== undefined ? data.cashout : 0;
       const disableAttr = isLancamentoReadOnly ? 'disabled' : '';
 
-      const saldoChange = `onchange="window.handleSaldoChange('${uid}')"`;
       const genericChange = `onchange="window.handleGenericChange('${uid}')"`;
+      const saldoChange = genericChange; // Use the same handler
+
 
       // Colunas Comuns
       let innerContent = `
         <td><b>${data.apelido}</b></td>
         <td><input type="number" class="inp-game inp-buyin" value="${data.buyins}" min="1" ${isCash ? saldoChange : genericChange} ${disableAttr}></td>
         <td><input type="number" class="inp-game inp-rebuy" value="${data.rebuys}" min="0" ${isCash ? saldoChange : genericChange} ${disableAttr}></td>
-        <td><input type="number" class="inp-game inp-addon" value="${data.addons}" min="0" ${isCash ? saldoChange : genericChange} ${disableAttr}></td>
-        <td><input type="number" class="inp-game inp-bonus" value="${data.bonus}" min="0" ${genericChange} ${disableAttr}></td>
+        <td ${isCash ? 'class="d-none"' : ''}><input type="number" class="inp-game inp-addon" value="${isCash ? 0 : data.addons}" min="0" ${isCash ? saldoChange : genericChange} ${disableAttr}></td>
+        <td ${isCash ? 'class="d-none"' : ''}><input type="number" class="inp-game inp-bonus" value="${isCash ? 0 : data.bonus}" min="0" ${genericChange} ${disableAttr}></td>
         <td class="bg-light border-start"><input type="text" class="inp-money inp-total-inv" readonly value="${(data.investimento||0).toFixed(2)}"></td>`;
 
       const inputTaxa = `<td class="col-taxa"><input type="number" step="0.5" class="inp-edit-money inp-taxa" value="${taxaVal}" onchange="recalcularLinha('${uid}')" ${disableAttr}></td>`;
@@ -989,8 +945,8 @@ function autoPosicionarPorSaldo() {
       const buyins = parseInt(tr.querySelector('.inp-buyin').value)||0;
       const rebuys = parseInt(tr.querySelector('.inp-rebuy').value)||0;
       const addons = parseInt(tr.querySelector('.inp-addon').value)||0;
-      const taxa = parseFloat(tr.querySelector('.inp-taxa').value)||0;
-      const saidaRaw = parseFloat(tr.querySelector('.inp-saida').value)||0;
+      const taxa = parseFloat((tr.querySelector('.inp-taxa').value||'0').replace(',', '.'))||0;
+      const saidaRaw = parseFloat((tr.querySelector('.inp-saida').value||'0').replace(',', '.'))||0;
       const posicao = parseInt(tr.querySelector('.inp-posicao').value)||0;
 
       // Investimento
@@ -1012,23 +968,7 @@ function autoPosicionarPorSaldo() {
 
       // Pontuação
       const qtdJogadores = document.querySelectorAll('#tbodyLancamento tr').length;
-      let pontos = 0;
-      if (posicao > 0) {
-          const rules = currentRankingData.sistemaPontuacao;
-          let c = rules.base_c;
-          const foundC = rules.tabela_c.find(x => x.pos === posicao);
-          if (foundC) c = foundC.pts;
-          
-          let fj = 1.0;
-          const foundFj = rules.tabela_fj.find(x => x.qtd === qtdJogadores);
-          if (foundFj) fj = foundFj.fator;
-          
-          let fb = 1.0;
-          const foundFb = rules.tabela_fb.find(x => x.buyin === currentRodadaData.buyInValor);
-          if (foundFb) fb = foundFb.fator;
-
-          pontos = c * fj * fb;
-      }
+      const pontos = calcularPontos(posicao, qtdJogadores, currentRodadaData.buyInValor);
       tr.querySelector('.lbl-pontos').innerText = pontos.toFixed(2);
       
       // Trigger Global
@@ -1039,11 +979,13 @@ function autoPosicionarPorSaldo() {
   function recalcularTotaisGerais() {
       let totalEntradas = 0;
       let totalSaidas = 0;
+      let totalTaxas = 0;
       const linhas = document.querySelectorAll('#tbodyLancamento tr');
       const isCash = currentRodadaData.tipo === 'Cash';
 
       linhas.forEach(tr => {
           totalEntradas += parseFloat(tr.querySelector('.inp-total-inv').value) || 0;
+          totalTaxas += parseFloat(tr.querySelector('.inp-taxa').value) || 0;
           
           if (isCash) {
               const cashOut = parseFloat(tr.querySelector('.inp-cashout').value) || 0;
@@ -1054,7 +996,8 @@ function autoPosicionarPorSaldo() {
           }
       });
 
-      const retido = totalEntradas - totalSaidas;
+      const retidoParcial = totalEntradas - totalSaidas; // Representa sobras (Cash) ou retenção (Torneio)
+      const retido = retidoParcial + totalTaxas; // Adiciona as taxas para o total retido
 
       document.getElementById('lblTotalEntradas').innerText = "R$ " + totalEntradas.toFixed(2);
       document.getElementById('lblTotalSaidas').innerText = "R$ " + totalSaidas.toFixed(2);
@@ -1102,7 +1045,7 @@ function autoPosicionarPorSaldo() {
       try {
           await batch.commit();
           alert("Resultados salvos com sucesso!");
-          modalLancamento.hide();
+          carregarResultadosTabela();
       } catch (e) {
           alert("Erro ao salvar: " + e.message);
       }
@@ -1722,7 +1665,9 @@ function autoPosicionarPorSaldo() {
       
       selFiltro.innerHTML = '<option value="todos">Geral (Acumulado)</option>';
       let rodadasMap = {}; 
-      let totalRetido = 0;
+      let totalRetidoTorneio = 0;
+      let totalSobras = 0;
+      let totalTaxas = 0;
 
       financeiroCacheData = [];
 
@@ -1738,6 +1683,11 @@ function autoPosicionarPorSaldo() {
           const resSnap = await getDocs(collection(db, "rankings", rankingId, "rodadas", rID, "jogadores"));
           resSnap.forEach(res => {
               const p = res.data();
+              const taxa = parseFloat(p.taxa) || 0;
+              const sobras = parseFloat(p.sobras) || 0;
+              totalTaxas += taxa;
+              totalSobras += sobras;
+
               financeiroCacheData.push({
                   rodadaId: rID,
                   rodadaNumero: r.numero,
@@ -1745,9 +1695,9 @@ function autoPosicionarPorSaldo() {
                   apelido: p.apelido,
                   investimento: parseFloat(p.investimento) || 0,
                   saida: parseFloat(p.saida) || 0, 
-                  sobras: parseFloat(p.sobras) || 0,
+                  sobras: sobras,
                   cashout: parseFloat(p.cashout) || 0, 
-                  taxa: parseFloat(p.taxa) || 0
+                  taxa: taxa
               });
               if (r.tipo === 'Torneio') {
                   rodadaTotalInv += parseFloat(p.investimento) || 0;
@@ -1756,11 +1706,12 @@ function autoPosicionarPorSaldo() {
           });
           if (r.tipo === 'Torneio') {
               const retencao = rodadaTotalInv - rodadaTotalPag;
-              if (retencao > 0) totalRetido += retencao;
+              if (retencao > 0) totalRetidoTorneio += retencao;
           }
       }
       
-      document.getElementById('relatorioTotalRetido').innerText = "R$ " + totalRetido.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+      const totalCaixaGeral = totalSobras + totalTaxas + totalRetidoTorneio;
+      document.getElementById('relatorioTotalRetido').innerText = "R$ " + totalCaixaGeral.toLocaleString('pt-BR', {minimumFractionDigits: 2});
       filtrarRelatorioFinanceiro();
   };
 
